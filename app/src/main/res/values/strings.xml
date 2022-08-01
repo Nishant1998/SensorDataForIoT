@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">SensorDataForIoT</string>
+    <string name="str_button">CLickMe</string>
+</resources>
