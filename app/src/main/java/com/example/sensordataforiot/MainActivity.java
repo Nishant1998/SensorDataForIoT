@@ -158,7 +158,16 @@ public class MainActivity extends AppCompatActivity {
                     direction = 2;
 
                 compass_degree.setText(String.valueOf(degree));
-                compass_direction.setText(String.valueOf(direction));
+                String d;
+                if(direction == 1)
+                    d = "N";
+                else if(direction == 2)
+                    d = "E";
+                else if(direction == 3)
+                    d = "S";
+                else
+                    d = "W";
+                compass_direction.setText(d);
                 try {
                     jsonObject.put("compass_degree",degree);
                     jsonObject.put("compass_direction", direction);
