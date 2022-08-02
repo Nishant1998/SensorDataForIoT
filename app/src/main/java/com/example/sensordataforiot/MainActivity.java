@@ -7,17 +7,35 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
+import org.eclipse.paho.android.service.MqttAndroidClient;
+import org.eclipse.paho.client.mqttv3.IMqttActionListener;
+import org.eclipse.paho.client.mqttv3.IMqttToken;
+import org.eclipse.paho.client.mqttv3.MqttClient;
+import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.UnsupportedEncodingException;
+import java.util.Timer;
+import java.util.TimerTask;
+
 public class MainActivity extends AppCompatActivity {
 
     Button button;
     TextView acc_x,acc_y,acc_z, gyro_x, gyro_y, gyro_z, compass_direction, compass_degree;
+    float ax,ay,az,gx,gy,gz,degree;
+    int direction;
 
-    String mqtt_broker, topic, client;
+    String clientId;
+    MqttAndroidClient client;
     SensorEventListener accSensorEventListener, gyroSensorEventListener, magneticSensorEventListener;
     Sensor accSensor, gyroSensor, magneticSensor;
     SensorManager accSensorManager, gyroSensorManager, magneticSensorManager;
@@ -27,7 +45,10 @@ public class MainActivity extends AppCompatActivity {
 
     private float[] floatOrientation = new float[3];
     private float[] floatRotationMatrix = new float[9];
-    float degree;
+
+    boolean isConnected = false;
+    JSONObject jsonObject = new JSONObject();
+
 
 
 
@@ -36,6 +57,10 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+
+
+
+        // find id
         button = findViewById(R.id.update_button);
         acc_x = findViewById(R.id.accelerometer_x);
         acc_y = findViewById(R.id.accelerometer_y);
@@ -46,22 +71,38 @@ public class MainActivity extends AppCompatActivity {
         compass_direction = findViewById(R.id.compass_direction);
         compass_degree = findViewById(R.id.compass_degree);
 
-
-
+        // Acc Sensor
         accSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         accSensor = accSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         accSensorEventListener = new SensorEventListener() {
             @Override
             public void onSensorChanged(SensorEvent sensorEvent) {
-                acc_x.setText(String.valueOf(sensorEvent.values[0]));
-                acc_y.setText(String.valueOf(sensorEvent.values[1]));
-                acc_z.setText(String.valueOf(sensorEvent.values[2]));
+                acc_x.setText(String.format("%.2f",sensorEvent.values[0]));
+                acc_y.setText(String.format("%.2f",sensorEvent.values[1]));
+                acc_z.setText(String.format("%.2f",sensorEvent.values[2]));
+                ax = sensorEvent.values[0];
+                ay = sensorEvent.values[1];
+                az = sensorEvent.values[2];
+                try {
+                    jsonObject.put("accelerometer_x",ax);
+                    jsonObject.put("accelerometer_y",ay);
+                    jsonObject.put("accelerometer_z",az);
+
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
 
                 floatAccelerometer = sensorEvent.values;
                 SensorManager.getRotationMatrix(floatRotationMatrix, null, floatAccelerometer, floatGeoMagnetic);
                 SensorManager.getOrientation(floatRotationMatrix, floatOrientation);
-                degree = (float) (-floatOrientation[0]*180/3.14159);
+                degree = (int) (floatOrientation[0]*180/3.14159 + 180);
                 compass_degree.setText(String.valueOf(degree));
+
+                // TODO: remove it
+                if(isConnected){
+                    Log.d("TEST", String.valueOf(jsonObject));
+                    mqttPublish(jsonObject,client);
+                }
             }
 
             @Override
@@ -69,15 +110,26 @@ public class MainActivity extends AppCompatActivity {
 
             }
         };
-
+        // Gyro Sensor
         gyroSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         gyroSensor = gyroSensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
         gyroSensorEventListener = new SensorEventListener() {
             @Override
             public void onSensorChanged(SensorEvent sensorEvent) {
-                gyro_x.setText(String.valueOf(sensorEvent.values[0]));
-                gyro_y.setText(String.valueOf(sensorEvent.values[1]));
-                gyro_z.setText(String.valueOf(sensorEvent.values[2]));
+                gyro_x.setText(String.format("%.2f",sensorEvent.values[0]));
+                gyro_y.setText(String.format("%.2f",sensorEvent.values[1]));
+                gyro_z.setText(String.format("%.2f",sensorEvent.values[2]));
+                gx = sensorEvent.values[0];
+                gy = sensorEvent.values[1];
+                gz = sensorEvent.values[2];
+                try {
+                    jsonObject.put("gyro_x",gx);
+                    jsonObject.put("gyro_y",gy);
+                    jsonObject.put("gyro_z",gz);
+
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
             }
 
             @Override
@@ -85,7 +137,7 @@ public class MainActivity extends AppCompatActivity {
 
             }
         };
-
+        // Magnetic Sensor
         magneticSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         magneticSensor = magneticSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
         magneticSensorEventListener = new SensorEventListener() {
@@ -94,9 +146,26 @@ public class MainActivity extends AppCompatActivity {
                 floatGeoMagnetic = sensorEvent.values;
                 SensorManager.getRotationMatrix(floatRotationMatrix, null, floatAccelerometer, floatGeoMagnetic);
                 SensorManager.getOrientation(floatRotationMatrix, floatOrientation);
-                degree = (float) (-floatOrientation[0]*180/3.14159);
+                degree = (int) (floatOrientation[0]*180/3.14159 + 180);
+
+                if(degree >= 315 || degree < 45)
+                    direction = 3;
+                else if (degree >=45  & degree < 135)
+                    direction = 4;
+                else if (degree >=135  & degree < 225)
+                    direction = 1;
+                else if (degree >=225  & degree < 315)
+                    direction = 2;
 
                 compass_degree.setText(String.valueOf(degree));
+                compass_direction.setText(String.valueOf(direction));
+                try {
+                    jsonObject.put("compass_degree",degree);
+                    jsonObject.put("compass_direction", direction);
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+
             }
 
             @Override
@@ -104,10 +173,6 @@ public class MainActivity extends AppCompatActivity {
 
             }
         };
-
-
-
-
 
     }
 
@@ -118,5 +183,75 @@ public class MainActivity extends AppCompatActivity {
         accSensorManager.registerListener(accSensorEventListener, accSensor, accSensorManager.SENSOR_DELAY_NORMAL);
         gyroSensorManager.registerListener(gyroSensorEventListener, gyroSensor, gyroSensorManager.SENSOR_DELAY_NORMAL);
         magneticSensorManager.registerListener(magneticSensorEventListener, magneticSensor, magneticSensorManager.SENSOR_DELAY_NORMAL);
+
+        // Mqtt
+        clientId = MqttClient.generateClientId();
+        client = new MqttAndroidClient(this.getApplicationContext(), "tcp://mqtt.eclipseprojects.io",
+                clientId);
+
+        try {
+            IMqttToken token = client.connect();
+            token.setActionCallback(new IMqttActionListener() {
+                @Override
+                public void onSuccess(IMqttToken asyncActionToken) {
+                    // We are connected
+                    Log.d("MQTT", "onSuccess");
+                    isConnected = true;
+                }
+
+                @Override
+                public void onFailure(IMqttToken asyncActionToken, Throwable exception) {
+                    // Something went wrong e.g. connection timeout or firewall problems
+                    Log.d("MQTT", "onFailure");
+                    isConnected = false;
+
+                }
+            });
+        } catch (MqttException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        mqttdisconnect(client);
+        isConnected = false;
+    }
+
+    void mqttPublish(JSONObject payload, MqttAndroidClient client)
+    {
+        String topic = "sensor_data";
+//        String payload = "the payload";
+        byte[] encodedPayload = new byte[0];
+        try {
+//            encodedPayload = payload..getBytes("UTF-8");
+            MqttMessage message = new MqttMessage();
+            message.setPayload(jsonObject.toString().getBytes("UTF-8"));
+            client.publish(topic, message);
+        } catch (UnsupportedEncodingException | MqttException e) {
+            e.printStackTrace();
+        }
+    }
+
+    void mqttdisconnect(MqttAndroidClient client)
+    {
+        try {
+            IMqttToken disconToken = client.disconnect();
+            disconToken.setActionCallback(new IMqttActionListener() {
+                @Override
+                public void onSuccess(IMqttToken asyncActionToken) {
+                    // we are now successfully disconnected
+                }
+
+                @Override
+                public void onFailure(IMqttToken asyncActionToken,
+                                      Throwable exception) {
+                    // something went wrong, but probably we are disconnected anyway
+                }
+            });
+        } catch (MqttException e) {
+            e.printStackTrace();
+        }
     }
 }

@@ -176,17 +176,22 @@
         <EditText
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:text="mqtt.eclipseprojects.io"
+            android:inputType="none"
             android:hint="Mqtt Broker"/>
 
         <EditText
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:inputType="none"
+            android:text="sensor_data"
             android:hint="topic"/>
 
         <Button
             android:id="@+id/update_button"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:clickable="false"
             android:text="@string/str_button"/>
 
     </LinearLayout>
