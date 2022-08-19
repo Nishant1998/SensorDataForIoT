@@ -30,7 +30,7 @@ import java.util.TimerTask;
 public class MainActivity extends AppCompatActivity {
 
     Button button;
-    TextView acc_x,acc_y,acc_z, gyro_x, gyro_y, gyro_z, compass_direction, compass_degree;
+    TextView acc_x,acc_y,acc_z, gyro_x, gyro_y, gyro_z,mag_x,mag_y,mag_z, compass_direction, compass_degree;
     float ax,ay,az,gx,gy,gz,degree;
     int direction;
 
@@ -68,6 +68,9 @@ public class MainActivity extends AppCompatActivity {
         gyro_x= findViewById(R.id.gyroscope_x);
         gyro_y= findViewById(R.id.gyroscope_y);
         gyro_z= findViewById(R.id.gyroscope_z);
+        mag_x= findViewById(R.id.magnetic_x);
+        mag_y= findViewById(R.id.magnetic_y);
+        mag_z= findViewById(R.id.magnetic_z);
         compass_direction = findViewById(R.id.compass_direction);
         compass_degree = findViewById(R.id.compass_degree);
 
@@ -130,6 +133,11 @@ public class MainActivity extends AppCompatActivity {
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
+
+                if(isConnected){
+                    Log.d("TEST", String.valueOf(jsonObject));
+                    mqttPublish(jsonObject,client);
+                }
             }
 
             @Override
@@ -143,6 +151,11 @@ public class MainActivity extends AppCompatActivity {
         magneticSensorEventListener = new SensorEventListener() {
             @Override
             public void onSensorChanged(SensorEvent sensorEvent) {
+                mag_x.setText(String.format("%.2f",sensorEvent.values[0]));
+                mag_y.setText(String.format("%.2f",sensorEvent.values[1]));
+                mag_z.setText(String.format("%.2f",sensorEvent.values[2]));
+
+
                 floatGeoMagnetic = sensorEvent.values;
                 SensorManager.getRotationMatrix(floatRotationMatrix, null, floatAccelerometer, floatGeoMagnetic);
                 SensorManager.getOrientation(floatRotationMatrix, floatOrientation);
@@ -169,10 +182,19 @@ public class MainActivity extends AppCompatActivity {
                     d = "W";
                 compass_direction.setText(d);
                 try {
+                    jsonObject.put("magnetic_x", sensorEvent.values[0]);
+                    jsonObject.put("magnetic_y", sensorEvent.values[1]);
+                    jsonObject.put("magnetic_z", sensorEvent.values[2]);
+
                     jsonObject.put("compass_degree",degree);
                     jsonObject.put("compass_direction", direction);
                 } catch (JSONException e) {
                     e.printStackTrace();
+                }
+
+                if(isConnected){
+                    Log.d("TEST", String.valueOf(jsonObject));
+                    mqttPublish(jsonObject,client);
                 }
 
             }
