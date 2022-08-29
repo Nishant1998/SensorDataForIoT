@@ -77,6 +77,8 @@ public class MainActivity extends AppCompatActivity {
         // Acc Sensor
         accSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         accSensor = accSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+//        accSensor = accSensorManager.getDefaultSensor(Sensor.T);
+
         accSensorEventListener = new SensorEventListener() {
             @Override
             public void onSensorChanged(SensorEvent sensorEvent) {
@@ -90,7 +92,7 @@ public class MainActivity extends AppCompatActivity {
                     jsonObject.put("accelerometer_x",ax);
                     jsonObject.put("accelerometer_y",ay);
                     jsonObject.put("accelerometer_z",az);
-
+                    jsonObject.put("time", System.currentTimeMillis() / 1000.0);
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
@@ -129,7 +131,7 @@ public class MainActivity extends AppCompatActivity {
                     jsonObject.put("gyro_x",gx);
                     jsonObject.put("gyro_y",gy);
                     jsonObject.put("gyro_z",gz);
-
+                    jsonObject.put("time", System.currentTimeMillis() / 1000.0);
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
@@ -185,9 +187,9 @@ public class MainActivity extends AppCompatActivity {
                     jsonObject.put("magnetic_x", sensorEvent.values[0]);
                     jsonObject.put("magnetic_y", sensorEvent.values[1]);
                     jsonObject.put("magnetic_z", sensorEvent.values[2]);
-
                     jsonObject.put("compass_degree",degree);
                     jsonObject.put("compass_direction", direction);
+                    jsonObject.put("time", System.currentTimeMillis() / 1000.0);
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
